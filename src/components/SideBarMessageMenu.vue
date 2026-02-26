@@ -67,6 +67,10 @@ import { isArray } from 'underscore'
 import { store } from './Globals.js'
 import TreeMenu from './widgets/TreeMenu.vue'
 import fastXmlParser from 'fast-xml-parser'
+import {
+    messageDescriptions,
+    fieldDescriptions
+} from '../assets/logmetadata/fallbackDescriptions.js'
 
 export default {
     name: 'message-menu',
@@ -178,6 +182,22 @@ export default {
                     }
                     for (const field of graph.fields.field) {
                         logDocs[graph['@_name']][field['@_name']] = field.description
+                    }
+                }
+            }
+            // Add fallback descriptions for messages not in XML files
+            for (const [msgType, desc] of Object.entries(messageDescriptions)) {
+                if (!logDocs[msgType]) {
+                    logDocs[msgType] = { doc: desc }
+                } else if (!logDocs[msgType].doc) {
+                    logDocs[msgType].doc = desc
+                }
+            }
+            // Add fallback field descriptions
+            for (const [fieldName, desc] of Object.entries(fieldDescriptions)) {
+                for (const msgType of Object.keys(logDocs)) {
+                    if (!logDocs[msgType][fieldName]) {
+                        logDocs[msgType][fieldName] = desc
                     }
                 }
             }
@@ -386,17 +406,27 @@ export default {
         width: 100%;
     }
     li.field {
-        line-height: 29px;
-        padding-left: 40px;
+        line-height: 1.4;
+        padding: 8px 10px 8px 40px;
         font-size: 90%;
-        display: inline-block;
+        display: block;
         vertical-align: middle;
         width: 100%;
+        cursor: pointer;
+        box-sizing: border-box;
+    }
+    li.field:hover {
+        background-color: rgba(52, 70, 100, 0.4);
     }
     li.type {
-        line-height: 30px;
-        padding-left: 10px;
+        line-height: 1.4;
+        padding: 8px 10px 8px 10px;
         font-size: 85%;
+        cursor: pointer;
+        box-sizing: border-box;
+    }
+    li.type:hover {
+        background-color: rgba(52, 70, 100, 0.3);
     }
     input {
         margin: 12px 12px 15px 10px;
@@ -437,14 +467,16 @@ export default {
     }
 
     span.description {
-      opacity: 70%;
-      font-size: 80%;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      display: inline-block;
-      max-width: 180px;
-      vertical-align: top;
+      opacity: 80%;
+      font-size: 75%;
+      display: block;
+      margin-top: 2px;
+      margin-left: 8px;
+      padding-right: 8px;
+      line-height: 1.3;
+      color: #b0c4de;
+      word-wrap: break-word;
+      white-space: normal;
     }
 
 </style>

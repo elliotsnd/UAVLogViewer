@@ -60,7 +60,10 @@ import {
     PolylineColorAppearance,
     Primitive,
     ShaderSource,
-    ImageMaterialProperty
+    ImageMaterialProperty,
+    Cesium3DTileset,
+    createGooglePhotorealistic3DTileset,
+    Math as CesiumMath
 } from 'cesium'
 
 import { DateTime } from 'luxon'
@@ -84,8 +87,9 @@ import {
     isPointInPolygon
 } from './cesiumExtra/boundingPolygon.js'
 
-// Set Cesium token from environment variable
-Ion.defaultAccessToken = process.env.VUE_APP_CESIUM_TOKEN || ''
+// Set Cesium token
+// eslint-disable-next-line max-len
+Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODE0ZTgyNC1jN2MwLTQyOWItOTRhZS0yNTNmZTZlYTc3ODMiLCJpZCI6MzkyODYzLCJpYXQiOjE3NzE3MTQwMzN9.rFDYd_1H8jdkCRuAirTlsI8AIxyowPCRL3rT9AvDrNw'
 
 const colorCoderMode = new ColorCoderMode(store)
 const colorCoderRange = new ColorCoderRange(store)
@@ -220,7 +224,9 @@ export default {
             this.addBathymetryButton()
             this.addCenterVehicleButton()
             this.addFitContentsButton()
+            this.addFPVButton()
             this.addCloseButton()
+            this.addGoogle3DTilesButton()
 
             for (const pos of this.state.currentTrajectory) {
                 this.correctedTrajectory.push(Cartographic.fromDegrees(pos[0], pos[1], pos[2]))
@@ -260,6 +266,7 @@ export default {
                         shouldAnimate: false,
                         scene3DOnly: false,
                         selectionIndicator: false,
+                        infoBox: false,
                         shadows: true,
                         // eslint-disable-next-line
                         baseLayer: new ImageryLayer.fromProviderAsync(
@@ -282,6 +289,7 @@ export default {
                     shouldAnimate: false,
                     scene3DOnly: false,
                     selectionIndicator: false,
+                    infoBox: false,
                     shadows: true,
                     orderIndependentTranslucency: false,
                     baseLayerPicker: false,
@@ -582,6 +590,226 @@ export default {
                 this.$nextTick(() => {
                     this.viewer.flyTo(this.model)
                 })
+            })
+        },
+        addFPVButton () {
+            /* Creates an FPV (First Person View) button to see from drone's perspective */
+            const toolbar = document.getElementsByClassName('cesium-viewer-toolbar')[0]
+
+            let fpvButton = document.createElement('span')
+            if (fpvButton.classList) {
+                fpvButton.classList.add('cesium-navigationHelpButton-wrapper')
+            } else {
+                fpvButton.className += ' ' + 'cesium-navigationHelpButton-wrapper'
+            }
+            fpvButton.innerHTML = '' +
+                '<button type="button" ' +
+                'id="cesium-fpv-button" ' +
+                'class="cesium-button cesium-toolbar-button"' +
+                'title="FPV Mode - First Person View from drone (drag to look around)">' +
+                '<span style="font-size: 14px; font-weight: bold;">FPV</span>' +
+                '</button>'.trim()
+            toolbar.append(fpvButton)
+            fpvButton = document.getElementById('cesium-fpv-button')
+
+            // FPV state
+            this.fpvEnabled = false
+            this.fpvTickListener = null
+            this.fpvLookHeading = 0 // User-controlled look offset (radians)
+            this.fpvLookPitch = 0 // User-controlled look offset (radians)
+            this.fpvMouseHandler = null
+            this.fpvIsDragging = false
+            this.fpvLastMouseX = 0
+            this.fpvLastMouseY = 0
+
+            fpvButton.addEventListener('click', () => {
+                this.fpvEnabled = !this.fpvEnabled
+
+                if (this.fpvEnabled) {
+                    // Enable FPV mode
+                    fpvButton.style.backgroundColor = '#4CAF50'
+                    this.viewer.trackedEntity = undefined
+
+                    // Reset look offsets
+                    this.fpvLookHeading = 0
+                    this.fpvLookPitch = 0
+
+                    // Create mouse handler for look-around
+                    this.fpvMouseHandler = new ScreenSpaceEventHandler(this.viewer.canvas)
+
+                    this.fpvMouseHandler.setInputAction((movement) => {
+                        this.fpvIsDragging = true
+                        this.fpvLastMouseX = movement.position.x
+                        this.fpvLastMouseY = movement.position.y
+                        this.viewer.scene.screenSpaceCameraController.enableInputs = false
+                    }, ScreenSpaceEventType.LEFT_DOWN)
+
+                    this.fpvMouseHandler.setInputAction((movement) => {
+                        if (this.fpvIsDragging) {
+                            const deltaX = movement.endPosition.x - this.fpvLastMouseX
+                            const deltaY = movement.endPosition.y - this.fpvLastMouseY
+
+                            // Adjust look direction based on mouse movement (inverted for natural feel)
+                            const sensitivity = 0.003
+                            this.fpvLookHeading += deltaX * sensitivity
+                            this.fpvLookPitch += deltaY * sensitivity
+
+                            // Clamp pitch to prevent flipping
+                            this.fpvLookPitch = Math.max(-Math.PI / 2 + 0.1,
+                                Math.min(Math.PI / 2 - 0.1, this.fpvLookPitch))
+
+                            this.fpvLastMouseX = movement.endPosition.x
+                            this.fpvLastMouseY = movement.endPosition.y
+                            // No requestRender here - tick listener handles it
+                        }
+                    }, ScreenSpaceEventType.MOUSE_MOVE)
+
+                    this.fpvMouseHandler.setInputAction(() => {
+                        this.fpvIsDragging = false
+                    }, ScreenSpaceEventType.LEFT_UP)
+
+                    // Create tick listener to update camera position
+                    this.fpvTickListener = () => {
+                        if (!this.model || !this.fpvEnabled) return
+
+                        const currentTime = this.viewer.clock.currentTime
+                        const position = this.model.position.getValue(currentTime)
+
+                        if (!position) return
+
+                        // Get cartographic position for height offset
+                        const cartographic = Cartographic.fromCartesian(position)
+
+                        // Offset camera slightly above the drone
+                        const offsetHeight = 0.5 // meters above drone
+
+                        // Calculate offset position
+                        const offsetPosition = Cartesian3.fromRadians(
+                            cartographic.longitude,
+                            cartographic.latitude,
+                            cartographic.height + offsetHeight
+                        )
+
+                        // Calculate look direction based on user input
+                        // Start with a north-facing direction and apply user offsets
+                        const heading = this.fpvLookHeading
+                        const pitch = this.fpvLookPitch
+
+                        // Set camera position and allow free look
+                        this.viewer.camera.setView({
+                            destination: offsetPosition,
+                            orientation: {
+                                heading: heading,
+                                pitch: pitch,
+                                roll: 0
+                            }
+                        })
+                        // Scene renders automatically on clock tick
+                    }
+
+                    this.viewer.clock.onTick.addEventListener(this.fpvTickListener)
+                } else {
+                    // Disable FPV mode
+                    fpvButton.style.backgroundColor = ''
+
+                    if (this.fpvTickListener) {
+                        this.viewer.clock.onTick.removeEventListener(this.fpvTickListener)
+                        this.fpvTickListener = null
+                    }
+
+                    if (this.fpvMouseHandler) {
+                        this.fpvMouseHandler.destroy()
+                        this.fpvMouseHandler = null
+                    }
+
+                    this.viewer.scene.screenSpaceCameraController.enableInputs = true
+
+                    // Return to follow mode
+                    this.viewer.trackedEntity = this.model
+                }
+            })
+        },
+        async addGoogle3DTilesButton () {
+            /* Creates a button to toggle Google 3D Photorealistic Tiles */
+            const toolbar = document.getElementsByClassName('cesium-viewer-toolbar')[0]
+
+            let google3dButton = document.createElement('span')
+            if (google3dButton.classList) {
+                google3dButton.classList.add('cesium-navigationHelpButton-wrapper')
+            } else {
+                google3dButton.className += ' ' + 'cesium-navigationHelpButton-wrapper'
+            }
+            google3dButton.innerHTML = '' +
+                '<button type="button" ' +
+                'id="cesium-google3d-button" ' +
+                'class="cesium-button cesium-toolbar-button"' +
+                'title="Toggle Google 3D Tiles (Melbourne)">' +
+                '<span style="font-size: 16px; font-weight: bold;">3D</span>' +
+                '</button>'.trim()
+            toolbar.append(google3dButton)
+            google3dButton = document.getElementById('cesium-google3d-button')
+
+            // Store reference to the tileset
+            this.google3DTileset = null
+
+            // Store references to tilesets
+            this.vicBuildingsTileset = null
+
+            google3dButton.addEventListener('click', async () => {
+                if (this.google3DTileset) {
+                    // Toggle off - remove tilesets and restore globe
+                    this.viewer.scene.primitives.remove(this.google3DTileset)
+                    this.google3DTileset = null
+                    if (this.vicBuildingsTileset) {
+                        this.viewer.scene.primitives.remove(this.vicBuildingsTileset)
+                        this.vicBuildingsTileset = null
+                    }
+                    this.viewer.scene.globe.show = true
+                    google3dButton.style.backgroundColor = ''
+                } else {
+                    // Toggle on - add Google 3D Photorealistic tiles
+                    try {
+                        // Disable globe to prevent projection conflicts with 3D tiles
+                        this.viewer.scene.globe.show = false
+
+                        // 1. Enable Google Photorealistic Tiles (default settings)
+                        this.google3DTileset = await createGooglePhotorealistic3DTileset()
+                        this.viewer.scene.primitives.add(this.google3DTileset)
+
+                        // 2. Add Vic Gov Buildings
+                        try {
+                            // eslint-disable-next-line max-len
+                            this.vicBuildingsTileset = await Cesium3DTileset.fromUrl('https://vic.digitaltwin.terria.io/api/v0/data/vic-buildings/tileset.json')
+                            this.viewer.scene.primitives.add(this.vicBuildingsTileset)
+                            console.log('Victorian government buildings loaded')
+                        } catch (vicError) {
+                            console.warn('Vic buildings not available:', vicError)
+                        }
+
+                        google3dButton.style.backgroundColor = '#4CAF50'
+
+                        // Fly to Oak Park, Melbourne, Australia
+                        this.viewer.camera.flyTo({
+                            destination: Cartesian3.fromDegrees(
+                                144.9175,
+                                -37.7875,
+                                400
+                            ),
+                            orientation: {
+                                heading: CesiumMath.toRadians(0),
+                                pitch: CesiumMath.toRadians(-45),
+                                roll: 0
+                            },
+                            duration: 2
+                        })
+                    } catch (error) {
+                        console.error('Failed to load Google 3D Tiles:', error)
+                        alert('Failed to load Google 3D Tiles: ' + error.message)
+                        // Restore globe on error
+                        this.viewer.scene.globe.show = true
+                    }
+                }
+                this.viewer.scene.requestRender()
             })
         },
         onCameraUpdate () {
