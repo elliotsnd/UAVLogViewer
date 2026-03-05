@@ -2,6 +2,8 @@
 
 ![3D Flight Review](preview_3d.jpg "Google 3D Photorealistic Tiles with flight path")
 
+![Screenshot](screenshot_3d.jpg "UAV Log Viewer 3D in action")
+
  This is a Javascript based log viewer for Mavlink telemetry and dataflash logs.
  [Live demo here](http://plot.ardupilot.org).
 

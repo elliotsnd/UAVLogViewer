@@ -223,7 +223,6 @@ export default {
             this.addFPVButton()
             this.addCloseButton()
             this.addGoogle3DTilesButton()
-            this.addTurboButton()
 
             for (const pos of this.state.currentTrajectory) {
                 this.correctedTrajectory.push(Cartographic.fromDegrees(pos[0], pos[1], pos[2]))
@@ -735,7 +734,6 @@ export default {
 
             // Store reference to the tileset
             this.google3DTileset = null
-            this.turboMode = false
 
             google3dButton.addEventListener('click', async () => {
                 if (this.google3DTileset) {
@@ -786,102 +784,33 @@ export default {
             })
         },
         apply3DTileSettings () {
-            /* Sets request scheduler based on turbo mode */
-            if (this.turboMode) {
-                RequestScheduler.maximumRequests = 80
-                RequestScheduler.maximumRequestsPerServer = 24
-            } else {
-                RequestScheduler.maximumRequests = 50
-                RequestScheduler.maximumRequestsPerServer = 18
-            }
+            /* Sets request scheduler limits for 3D tiles */
+            RequestScheduler.maximumRequests = 50
+            RequestScheduler.maximumRequestsPerServer = 18
         },
         configure3DTileset () {
             /* Applies quality settings to the active 3D tileset */
             if (!this.google3DTileset) return
             const t = this.google3DTileset
-            if (this.turboMode) {
-                // TURBO: max visual quality, large cache
-                t.maximumScreenSpaceError = 1
-                t.maximumMemoryUsage = 4096
-                t.preloadWhenHidden = false
-                t.preferLeaves = true
-                t.skipLevelOfDetail = true
-                t.skipLevels = 1
-                t.skipScreenSpaceErrorFactor = 8
-                t.loadSiblings = false
-                t.immediatelyLoadDesiredLevelOfDetail = true
-                t.foveatedScreenSpaceError = true
-                t.foveatedConeSize = 0.1
-                t.foveatedMinimumScreenSpaceErrorRelaxation = 0.0
-                t.dynamicScreenSpaceError = false
-                t.cacheBytes = 2 * 1024 * 1024 * 1024
-                t.maximumCacheOverflowBytes = 1024 * 1024 * 1024
-            } else {
-                // BALANCED: fast load, moderate quality
-                t.maximumScreenSpaceError = 8
-                t.maximumMemoryUsage = 1024
-                t.preloadWhenHidden = false
-                t.preferLeaves = true
-                t.skipLevelOfDetail = true
-                t.skipLevels = 4
-                t.skipScreenSpaceErrorFactor = 16
-                t.loadSiblings = false
-                t.immediatelyLoadDesiredLevelOfDetail = false
-                t.foveatedScreenSpaceError = true
-                t.foveatedConeSize = 0.3
-                t.foveatedMinimumScreenSpaceErrorRelaxation = 0.0
-                t.dynamicScreenSpaceError = true
-                t.dynamicScreenSpaceErrorDensity = 0.00278
-                t.dynamicScreenSpaceErrorFactor = 8.0
-                t.cacheBytes = 512 * 1024 * 1024
-                t.maximumCacheOverflowBytes = 256 * 1024 * 1024
-            }
+            t.maximumScreenSpaceError = 8
+            t.maximumMemoryUsage = 1024
+            t.preloadWhenHidden = false
+            t.preferLeaves = true
+            t.skipLevelOfDetail = true
+            t.skipLevels = 4
+            t.skipScreenSpaceErrorFactor = 16
+            t.loadSiblings = false
+            t.immediatelyLoadDesiredLevelOfDetail = false
+            t.foveatedScreenSpaceError = true
+            t.foveatedConeSize = 0.3
+            t.foveatedMinimumScreenSpaceErrorRelaxation = 0.0
+            t.dynamicScreenSpaceError = true
+            t.dynamicScreenSpaceErrorDensity = 0.00278
+            t.dynamicScreenSpaceErrorFactor = 8.0
+            t.cacheBytes = 512 * 1024 * 1024
+            t.maximumCacheOverflowBytes = 256 * 1024 * 1024
         },
-        addTurboButton () {
-            /* Creates a turbo mode toggle button */
-            if (!this.state.isOnline) return
-            const toolbar =
-                document.getElementsByClassName('cesium-viewer-toolbar')[0]
 
-            let turboButton = document.createElement('span')
-            if (turboButton.classList) {
-                turboButton.classList.add(
-                    'cesium-navigationHelpButton-wrapper'
-                )
-            } else {
-                turboButton.className +=
-                    ' ' + 'cesium-navigationHelpButton-wrapper'
-            }
-            turboButton.innerHTML = '' +
-                '<button type="button" ' +
-                'id="cesium-turbo-button" ' +
-                'class="cesium-button cesium-toolbar-button"' +
-                'title="Turbo Mode: Use max PC resources for fastest 3D tiles">' +
-                '<span style="font-size: 14px; font-weight: bold;">' +
-                '\u26A1</span>' +
-                '</button>'.trim()
-            toolbar.append(turboButton)
-            turboButton = document.getElementById('cesium-turbo-button')
-
-            turboButton.addEventListener('click', () => {
-                this.turboMode = !this.turboMode
-                if (this.turboMode) {
-                    turboButton.style.backgroundColor = '#FF5722'
-                    turboButton.title =
-                        'Turbo Mode ON \u2014 max quality, max resources'
-                } else {
-                    turboButton.style.backgroundColor = ''
-                    turboButton.title =
-                        'Turbo Mode: Use max PC resources for fastest 3D tiles'
-                }
-                // If 3D tiles are already active, apply immediately
-                if (this.google3DTileset) {
-                    this.apply3DTileSettings()
-                    this.configure3DTileset()
-                }
-                this.viewer.scene.requestRender()
-            })
-        },
         onCameraUpdate () {
             const query = Object.create(this.$route.query) // clone it
             const cam = this.viewer.camera
