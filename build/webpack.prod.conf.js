@@ -88,6 +88,8 @@ const webpackConfig = merge(baseWebpackConfig, {
         {from: path.join(cesiumSource, 'Assets'), to: 'Assets'},
         {from: path.join(cesiumSource, 'Widgets'), to: 'Widgets'},
         {from: cesiumWorkers, to: 'Workers'},
+        {from: path.resolve('node_modules/cesium/Build/Cesium/ThirdParty', 'draco_decoder.wasm'), to: 'ThirdParty'},
+        {from: path.resolve('node_modules/cesium/Build/Cesium/ThirdParty', 'basis_transcoder.wasm'), to: 'ThirdParty'},
         // {from: path.join(cesiumSource, 'ThirdParty'), to: 'ThirdParty'},
         // {from: path.join(cesiumSource, '../Build/Cesium/ThirdParty/Workers'), to: 'ThirdParty/Workers', force: true},
         // {from: path.join(cesiumSource, '../Build/Cesium/Workers'), to: 'Workers', force: true}
