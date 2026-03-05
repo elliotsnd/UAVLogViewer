@@ -78,6 +78,8 @@ const devWebpackConfig = merge(baseWebpackConfig, {
         { from: path.resolve(cesiumSource, 'Assets'), to: 'Assets' },
         { from: path.resolve(cesiumSource, 'Widgets'), to: 'Widgets' },
         { from: path.resolve(cesiumSource, 'ThirdParty/Workers'), to: 'ThirdParty/Workers' },
+        { from: path.resolve('node_modules/cesium/Build/Cesium/ThirdParty', 'draco_decoder.wasm'), to: 'ThirdParty' },
+        { from: path.resolve('node_modules/cesium/Build/Cesium/ThirdParty', 'basis_transcoder.wasm'), to: 'ThirdParty' },
       ],
       options: {
         concurrency: 100

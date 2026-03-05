@@ -87,9 +87,9 @@ import {
     isPointInPolygon
 } from './cesiumExtra/boundingPolygon.js'
 
-// Set Cesium token
+// Set Cesium token from environment variable (set in .env file), with hardcoded fallback
 // eslint-disable-next-line max-len
-Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODE0ZTgyNC1jN2MwLTQyOWItOTRhZS0yNTNmZTZlYTc3ODMiLCJpZCI6MzkyODYzLCJpYXQiOjE3NzE3MTQwMzN9.rFDYd_1H8jdkCRuAirTlsI8AIxyowPCRL3rT9AvDrNw'
+Ion.defaultAccessToken = process.env.VUE_APP_CESIUM_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODE0ZTgyNC1jN2MwLTQyOWItOTRhZS0yNTNmZTZlYTc3ODMiLCJpZCI6MzkyODYzLCJpYXQiOjE3NzE3MTQwMzN9.rFDYd_1H8jdkCRuAirTlsI8AIxyowPCRL3rT9AvDrNw'
 
 const colorCoderMode = new ColorCoderMode(store)
 const colorCoderRange = new ColorCoderRange(store)
@@ -268,10 +268,6 @@ export default {
                         selectionIndicator: false,
                         infoBox: false,
                         shadows: true,
-                        // eslint-disable-next-line
-                        baseLayer: new ImageryLayer.fromProviderAsync(
-                            IonImageryProvider.fromAssetId(3954)
-                        ),
                         imageryProviderViewModels: imageryProviders,
                         orderIndependentTranslucency: false,
                         useBrowserRecommendedResolution: false
@@ -307,17 +303,6 @@ export default {
             // const imageryProviders = createDefaultImageryProviderViewModels()
             const imageryProviders = []
             imageryProviders.push(new ProviderViewModel({
-                name: 'StatKart',
-                iconUrl: require('../assets/statkart.jpg').default,
-                tooltip: 'Statkart aerial imagery \nhttp://statkart.no/',
-                creationFunction: function () {
-                    return new UrlTemplateImageryProvider({
-                        url: 'http://opencache.statkart.no/gatekeeper/gk/gk.open_gmaps?layers=topo4&zoom={z}&x={x}&y={y}',
-                        credit: 'Map tiles by Statkart.'
-                    })
-                }
-            }))
-            imageryProviders.push(new ProviderViewModel({
                 name: 'MapTiler',
                 iconUrl: require('../assets/maptiler.png').default,
                 tooltip: 'Maptiler satellite imagery http://maptiler.com/',
@@ -327,6 +312,17 @@ export default {
                         minimumLevel: 0,
                         maximumLevel: 20,
                         credit: 'https://www.maptiler.com/copyright'
+                    })
+                }
+            }))
+            imageryProviders.push(new ProviderViewModel({
+                name: 'StatKart',
+                iconUrl: require('../assets/statkart.jpg').default,
+                tooltip: 'Statkart aerial imagery \nhttp://statkart.no/',
+                creationFunction: function () {
+                    return new UrlTemplateImageryProvider({
+                        url: 'http://opencache.statkart.no/gatekeeper/gk/gk.open_gmaps?layers=topo4&zoom={z}&x={x}&y={y}',
+                        credit: 'Map tiles by Statkart.'
                     })
                 }
             })
@@ -772,8 +768,13 @@ export default {
                         // Disable globe to prevent projection conflicts with 3D tiles
                         this.viewer.scene.globe.show = false
 
-                        // 1. Enable Google Photorealistic Tiles (default settings)
+                        // 1. Enable Google Photorealistic Tiles (max detail)
                         this.google3DTileset = await createGooglePhotorealistic3DTileset()
+                        this.google3DTileset.maximumScreenSpaceError = 1
+                        this.google3DTileset.maximumMemoryUsage = 4096
+                        this.google3DTileset.preloadWhenHidden = true
+                        this.google3DTileset.preferLeaves = true
+                        this.google3DTileset.skipLevelOfDetail = false
                         this.viewer.scene.primitives.add(this.google3DTileset)
 
                         // 2. Add Vic Gov Buildings
