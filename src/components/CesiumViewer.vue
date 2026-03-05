@@ -59,7 +59,8 @@ import {
     Primitive,
     ShaderSource,
     ImageMaterialProperty,
-    createGooglePhotorealistic3DTileset
+    createGooglePhotorealistic3DTileset,
+    RequestScheduler
 } from 'cesium'
 
 import { DateTime } from 'luxon'
@@ -156,7 +157,6 @@ export default {
                 this.trajectoryUpdateTimeout = null
                 this.viewer.scene.globe.enableLighting = true
                 this.viewer.scene.postRender.addEventListener(this.onFrameUpdate)
-                this.viewer.scene.postRender.addEventListener(this.onFrameUpdate)
                 this.viewer.scene.morphComplete.addEventListener(
                     () => {
                         this.viewer.zoomTo(this.viewer.entities)
@@ -164,8 +164,8 @@ export default {
                 this.viewer.animation.viewModel.setShuttleRingTicks([0.1, 0.25, 0.5, 0.75, 1, 2, 5, 10, 15])
                 this.viewer.scene.globe.depthTestAgainstTerrain = true
                 this.viewer.shadowMap.maxmimumDistance = 10000.0
-                this.viewer.shadowMap.softShadows = true
-                this.viewer.shadowMap.size = 4096
+                this.viewer.shadowMap.softShadows = false
+                this.viewer.shadowMap.size = 2048
                 this.viewer.animation.viewModel.timeFormatter = (date, _viewModel) => {
                     const isoString = JulianDate.toIso8601(date)
                     let dateTime = DateTime.fromISO(isoString)
@@ -223,6 +223,7 @@ export default {
             this.addFPVButton()
             this.addCloseButton()
             this.addGoogle3DTilesButton()
+            this.addTurboButton()
 
             for (const pos of this.state.currentTrajectory) {
                 this.correctedTrajectory.push(Cartographic.fromDegrees(pos[0], pos[1], pos[2]))
@@ -259,6 +260,7 @@ export default {
                         timeline: true,
                         animation: true,
                         requestRenderMode: true,
+                        maximumRenderTimeChange: 0.0,
                         shouldAnimate: false,
                         scene3DOnly: false,
                         selectionIndicator: false,
@@ -267,7 +269,12 @@ export default {
                         imageryProviderViewModels: imageryProviders,
                         selectedImageryProviderViewModel: imageryProviders[0],
                         orderIndependentTranslucency: false,
-                        useBrowserRecommendedResolution: false
+                        useBrowserRecommendedResolution: false,
+                        contextOptions: {
+                            webgl: {
+                                powerPreference: 'high-performance'
+                            }
+                        }
                     }
                 )
             }
@@ -279,6 +286,7 @@ export default {
                     timeline: true,
                     animation: true,
                     requestRenderMode: true,
+                    maximumRenderTimeChange: 0.0,
                     shouldAnimate: false,
                     scene3DOnly: false,
                     selectionIndicator: false,
@@ -727,6 +735,7 @@ export default {
 
             // Store reference to the tileset
             this.google3DTileset = null
+            this.turboMode = false
 
             google3dButton.addEventListener('click', async () => {
                 if (this.google3DTileset) {
@@ -734,33 +743,141 @@ export default {
                     this.viewer.scene.primitives.remove(this.google3DTileset)
                     this.google3DTileset = null
                     this.viewer.scene.globe.show = true
+                    this.viewer.shadows = true
+                    this.viewer.scene.globe.enableLighting = true
+                    this.viewer.scene.fog.enabled = true
+                    // Restore default request limits
+                    RequestScheduler.maximumRequests = 50
+                    RequestScheduler.maximumRequestsPerServer = 18
+                    // Restore on-demand rendering to save power
+                    this.viewer.scene.requestRenderMode = true
                     google3dButton.style.backgroundColor = ''
                 } else {
                     // Toggle on - add Google 3D Photorealistic tiles
                     try {
-                        // Disable globe to prevent projection conflicts with 3D tiles
+                        // Disable globe for 3D tiles
                         this.viewer.scene.globe.show = false
-
+                        this.apply3DTileSettings()
                         // Enable Google Photorealistic 3D Tiles
-                        // Quality balanced for broad device compatibility
-                        this.google3DTileset = await createGooglePhotorealistic3DTileset()
-                        this.google3DTileset.maximumScreenSpaceError = 2
-                        this.google3DTileset.maximumMemoryUsage = 2048
-                        this.google3DTileset.preloadWhenHidden = true
-                        this.google3DTileset.preferLeaves = true
-                        this.google3DTileset.skipLevelOfDetail = false
-                        this.viewer.scene.primitives.add(this.google3DTileset)
+                        this.google3DTileset =
+                            await createGooglePhotorealistic3DTileset()
+                        this.configure3DTileset()
+                        this.viewer.scene.primitives.add(
+                            this.google3DTileset
+                        )
+
+                        // Disable expensive features in 3D tile mode
+                        this.viewer.shadows = false
+                        this.viewer.scene.globe.enableLighting = false
+                        this.viewer.scene.fog.enabled = false
+                        // Continuous rendering while tiles stream
+                        this.viewer.scene.requestRenderMode = false
 
                         google3dButton.style.backgroundColor = '#4CAF50'
-
-                        // Stay at current camera position (drone location)
-                        // Just request a render — no flyTo needed
                     } catch (error) {
                         console.error('Failed to load Google 3D Tiles:', error)
-                        alert('Failed to load Google 3D Tiles: ' + error.message)
-                        // Restore globe on error
+                        alert(
+                            'Failed to load Google 3D Tiles: ' + error.message
+                        )
                         this.viewer.scene.globe.show = true
                     }
+                }
+                this.viewer.scene.requestRender()
+            })
+        },
+        apply3DTileSettings () {
+            /* Sets request scheduler based on turbo mode */
+            if (this.turboMode) {
+                RequestScheduler.maximumRequests = 80
+                RequestScheduler.maximumRequestsPerServer = 24
+            } else {
+                RequestScheduler.maximumRequests = 50
+                RequestScheduler.maximumRequestsPerServer = 18
+            }
+        },
+        configure3DTileset () {
+            /* Applies quality settings to the active 3D tileset */
+            if (!this.google3DTileset) return
+            const t = this.google3DTileset
+            if (this.turboMode) {
+                // TURBO: max visual quality, large cache
+                t.maximumScreenSpaceError = 1
+                t.maximumMemoryUsage = 4096
+                t.preloadWhenHidden = false
+                t.preferLeaves = true
+                t.skipLevelOfDetail = true
+                t.skipLevels = 1
+                t.skipScreenSpaceErrorFactor = 8
+                t.loadSiblings = false
+                t.immediatelyLoadDesiredLevelOfDetail = true
+                t.foveatedScreenSpaceError = true
+                t.foveatedConeSize = 0.1
+                t.foveatedMinimumScreenSpaceErrorRelaxation = 0.0
+                t.dynamicScreenSpaceError = false
+                t.cacheBytes = 2 * 1024 * 1024 * 1024
+                t.maximumCacheOverflowBytes = 1024 * 1024 * 1024
+            } else {
+                // BALANCED: fast load, moderate quality
+                t.maximumScreenSpaceError = 8
+                t.maximumMemoryUsage = 1024
+                t.preloadWhenHidden = false
+                t.preferLeaves = true
+                t.skipLevelOfDetail = true
+                t.skipLevels = 4
+                t.skipScreenSpaceErrorFactor = 16
+                t.loadSiblings = false
+                t.immediatelyLoadDesiredLevelOfDetail = false
+                t.foveatedScreenSpaceError = true
+                t.foveatedConeSize = 0.3
+                t.foveatedMinimumScreenSpaceErrorRelaxation = 0.0
+                t.dynamicScreenSpaceError = true
+                t.dynamicScreenSpaceErrorDensity = 0.00278
+                t.dynamicScreenSpaceErrorFactor = 8.0
+                t.cacheBytes = 512 * 1024 * 1024
+                t.maximumCacheOverflowBytes = 256 * 1024 * 1024
+            }
+        },
+        addTurboButton () {
+            /* Creates a turbo mode toggle button */
+            if (!this.state.isOnline) return
+            const toolbar =
+                document.getElementsByClassName('cesium-viewer-toolbar')[0]
+
+            let turboButton = document.createElement('span')
+            if (turboButton.classList) {
+                turboButton.classList.add(
+                    'cesium-navigationHelpButton-wrapper'
+                )
+            } else {
+                turboButton.className +=
+                    ' ' + 'cesium-navigationHelpButton-wrapper'
+            }
+            turboButton.innerHTML = '' +
+                '<button type="button" ' +
+                'id="cesium-turbo-button" ' +
+                'class="cesium-button cesium-toolbar-button"' +
+                'title="Turbo Mode: Use max PC resources for fastest 3D tiles">' +
+                '<span style="font-size: 14px; font-weight: bold;">' +
+                '\u26A1</span>' +
+                '</button>'.trim()
+            toolbar.append(turboButton)
+            turboButton = document.getElementById('cesium-turbo-button')
+
+            turboButton.addEventListener('click', () => {
+                this.turboMode = !this.turboMode
+                if (this.turboMode) {
+                    turboButton.style.backgroundColor = '#FF5722'
+                    turboButton.title =
+                        'Turbo Mode ON \u2014 max quality, max resources'
+                } else {
+                    turboButton.style.backgroundColor = ''
+                    turboButton.title =
+                        'Turbo Mode: Use max PC resources for fastest 3D tiles'
+                }
+                // If 3D tiles are already active, apply immediately
+                if (this.google3DTileset) {
+                    this.apply3DTileSettings()
+                    this.configure3DTileset()
                 }
                 this.viewer.scene.requestRender()
             })
