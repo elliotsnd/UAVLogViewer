@@ -2,8 +2,6 @@
 
 ![3D Flight Review](preview_3d.jpg "Google 3D Photorealistic Tiles with flight path")
 
-![log seeking](preview.gif "Log seeking demo")
-
  This is a Javascript based log viewer for Mavlink telemetry and dataflash logs.
  [Live demo here](http://plot.ardupilot.org).
 
