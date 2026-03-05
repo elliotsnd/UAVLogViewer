@@ -269,6 +269,7 @@ export default {
                         infoBox: false,
                         shadows: true,
                         imageryProviderViewModels: imageryProviders,
+                        selectedImageryProviderViewModel: imageryProviders[0],
                         orderIndependentTranslucency: false,
                         useBrowserRecommendedResolution: false
                     }
