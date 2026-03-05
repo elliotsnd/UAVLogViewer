@@ -1,4 +1,4 @@
-# UAV Log Viewer
+# UAV Log Viewer 3D
 
 ![3D Flight Review](preview_3d.jpg "Google 3D Photorealistic Tiles with flight path")
 

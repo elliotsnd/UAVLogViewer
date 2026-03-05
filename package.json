@@ -1,7 +1,7 @@
 {
-  "name": "tlogviewer",
+  "name": "uavlogviewer3d",
   "version": "1.0.0",
-  "description": "A js viewer for mavlink telemetry logs",
+  "description": "A 3D log viewer for mavlink telemetry and dataflash logs",
   "author": "Willian Galvani <williangalvani@gmail.com>",
   "private": true,
   "scripts": {
