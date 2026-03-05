@@ -1,0 +1,104 @@
+name: CI & Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Allow only one concurrent deployment, skip runs queued between
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  # ── Lint ──────────────────────────────────────────────────
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run ESLint
+        run: npx eslint --ext .js,.vue src
+        continue-on-error: true  # don't block build for lint warnings on legacy code
+
+  # ── Build ─────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Production build
+        run: npm run build
+        env:
+          VUE_APP_CESIUM_TOKEN: ${{ secrets.CESIUM_TOKEN }}
+
+      - name: Verify dist output
+        run: |
+          echo "=== dist/ contents ==="
+          ls -la dist/
+          echo ""
+          echo "=== Check index.html exists ==="
+          test -f dist/index.html && echo "✓ index.html found" || (echo "✗ index.html missing" && exit 1)
+          echo ""
+          echo "=== Check Cesium assets ==="
+          test -d dist/Assets && echo "✓ Assets/ found" || echo "⚠ Assets/ missing"
+          test -d dist/Workers && echo "✓ Workers/ found" || echo "⚠ Workers/ missing"
+          test -d dist/Widgets && echo "✓ Widgets/ found" || echo "⚠ Widgets/ missing"
+          echo ""
+          echo "=== Check Draco WASM ==="
+          test -f dist/ThirdParty/draco_decoder.wasm && echo "✓ draco_decoder.wasm found" || echo "✗ draco_decoder.wasm MISSING"
+          test -f dist/ThirdParty/basis_transcoder.wasm && echo "✓ basis_transcoder.wasm found" || echo "✗ basis_transcoder.wasm MISSING"
+          echo ""
+          echo "=== Bundle sizes ==="
+          du -sh dist/
+          du -sh dist/static/js/ 2>/dev/null || true
+          du -sh dist/static/css/ 2>/dev/null || true
+
+      - name: Upload build artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  # ── Deploy ────────────────────────────────────────────────
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
