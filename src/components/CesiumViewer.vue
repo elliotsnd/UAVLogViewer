@@ -27,8 +27,6 @@ import {
     UrlTemplateImageryProvider,
     Viewer, createWorldTerrainAsync,
     PointPrimitiveCollection,
-    ImageryLayer,
-    IonImageryProvider,
     Entity,
     ScreenSpaceEventHandler,
     ScreenSpaceEventType,
@@ -62,8 +60,7 @@ import {
     ShaderSource,
     ImageMaterialProperty,
     Cesium3DTileset,
-    createGooglePhotorealistic3DTileset,
-    Math as CesiumMath
+    createGooglePhotorealistic3DTileset
 } from 'cesium'
 
 import { DateTime } from 'luxon'
@@ -89,7 +86,7 @@ import {
 
 // Set Cesium token from environment variable (set in .env file), with hardcoded fallback
 // eslint-disable-next-line max-len
-Ion.defaultAccessToken = process.env.VUE_APP_CESIUM_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiODE0ZTgyNC1jN2MwLTQyOWItOTRhZS0yNTNmZTZlYTc3ODMiLCJpZCI6MzkyODYzLCJpYXQiOjE3NzE3MTQwMzN9.rFDYd_1H8jdkCRuAirTlsI8AIxyowPCRL3rT9AvDrNw'
+Ion.defaultAccessToken = process.env.VUE_APP_CESIUM_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0ODQ3MGRiNS00NTI1LTQ3MTktODFhOS1hMGRmMDY2ZGJiMGIiLCJpZCI6MzkyODYzLCJpYXQiOjE3NzE3MTQwOTN9.DJevcEnhy8rlqK54cTtdRXMQLVYv3RpfvtLI_7j9EuU'
 
 const colorCoderMode = new ColorCoderMode(store)
 const colorCoderRange = new ColorCoderRange(store)
@@ -304,15 +301,31 @@ export default {
             // const imageryProviders = createDefaultImageryProviderViewModels()
             const imageryProviders = []
             imageryProviders.push(new ProviderViewModel({
-                name: 'MapTiler',
-                iconUrl: require('../assets/maptiler.png').default,
-                tooltip: 'Maptiler satellite imagery http://maptiler.com/',
+                name: 'ESRI Satellite',
+                iconUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/0/0/0',
+                tooltip: 'ESRI World Imagery satellite tiles',
                 creationFunction: function () {
                     return new UrlTemplateImageryProvider({
-                        url: 'https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=o3JREHNnXex8WSPPm2BU',
+                        url: 'https://server.arcgisonline.com/' +
+                            'ArcGIS/rest/services/World_Imagery' +
+                            '/MapServer/tile/{z}/{y}/{x}',
                         minimumLevel: 0,
-                        maximumLevel: 20,
-                        credit: 'https://www.maptiler.com/copyright'
+                        maximumLevel: 19,
+                        credit: 'Tiles Esri, USDA, USGS, ' +
+                            'GeoEye, Getmapping, Aerogrid'
+                    })
+                }
+            }))
+            imageryProviders.push(new ProviderViewModel({
+                name: 'OpenStreetMap',
+                iconUrl: 'https://c.tile.openstreetmap.org/0/0/0.png',
+                tooltip: 'OpenStreetMap \nhttps://www.openstreetmap.org/',
+                creationFunction: function () {
+                    return new UrlTemplateImageryProvider({
+                        url: 'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        minimumLevel: 0,
+                        maximumLevel: 19,
+                        credit: '© OpenStreetMap contributors'
                     })
                 }
             }))
@@ -328,16 +341,6 @@ export default {
                 }
             })
             )
-            // save this one so it can be referenced when creating the cesium viewer
-            this.sentinelProvider = new ProviderViewModel({
-                name: 'Sentinel 2',
-                iconUrl: '/Widgets/Images/ImageryProviders/sentinel-2.png',
-                tooltip: 'Sentinel 2 Imagery',
-                creationFunction: function () {
-                    return ImageryLayer.fromProviderAsync(IonImageryProvider.fromAssetId(3812))
-                }
-            })
-            imageryProviders.push(this.sentinelProvider)
             imageryProviders.push(new ProviderViewModel({
                 name: 'Eniro',
                 iconUrl: require('../assets/eniro.png').default,
@@ -740,7 +743,7 @@ export default {
                 '<button type="button" ' +
                 'id="cesium-google3d-button" ' +
                 'class="cesium-button cesium-toolbar-button"' +
-                'title="Toggle Google 3D Tiles (Melbourne)">' +
+                'title="Toggle Google 3D Tiles">' +
                 '<span style="font-size: 16px; font-weight: bold;">3D</span>' +
                 '</button>'.trim()
             toolbar.append(google3dButton)
@@ -790,20 +793,8 @@ export default {
 
                         google3dButton.style.backgroundColor = '#4CAF50'
 
-                        // Fly to Oak Park, Melbourne, Australia
-                        this.viewer.camera.flyTo({
-                            destination: Cartesian3.fromDegrees(
-                                144.9175,
-                                -37.7875,
-                                400
-                            ),
-                            orientation: {
-                                heading: CesiumMath.toRadians(0),
-                                pitch: CesiumMath.toRadians(-45),
-                                roll: 0
-                            },
-                            duration: 2
-                        })
+                        // Stay at current camera position (drone location)
+                        // Just request a render — no flyTo needed
                     } catch (error) {
                         console.error('Failed to load Google 3D Tiles:', error)
                         alert('Failed to load Google 3D Tiles: ' + error.message)
