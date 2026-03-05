@@ -59,7 +59,6 @@ import {
     Primitive,
     ShaderSource,
     ImageMaterialProperty,
-    Cesium3DTileset,
     createGooglePhotorealistic3DTileset
 } from 'cesium'
 
@@ -329,30 +328,7 @@ export default {
                     })
                 }
             }))
-            imageryProviders.push(new ProviderViewModel({
-                name: 'StatKart',
-                iconUrl: require('../assets/statkart.jpg').default,
-                tooltip: 'Statkart aerial imagery \nhttp://statkart.no/',
-                creationFunction: function () {
-                    return new UrlTemplateImageryProvider({
-                        url: 'http://opencache.statkart.no/gatekeeper/gk/gk.open_gmaps?layers=topo4&zoom={z}&x={x}&y={y}',
-                        credit: 'Map tiles by Statkart.'
-                    })
-                }
-            })
-            )
-            imageryProviders.push(new ProviderViewModel({
-                name: 'Eniro',
-                iconUrl: require('../assets/eniro.png').default,
-                tooltip: 'Eniro aerial imagery \nhttp://map.eniro.com/',
-                creationFunction: function () {
-                    return new UrlTemplateImageryProvider({
-                        // url: 'http://map.eniro.com/geowebcache/service/tms1.0.0/map/{z}/{x}/{reverseY}.png',
-                        url: '/eniro/{z}/{x}/{reverseY}.png',
-                        credit: 'Map tiles by Eniro.'
-                    })
-                }
-            }))
+
             imageryProviders.push(new ProviderViewModel({
                 name: 'OpenSeaMap',
                 iconUrl: require('../assets/openseamap.png').default,
@@ -368,7 +344,7 @@ export default {
                             credit: 'Map tiles by OpenStreetMap.'
                         }),
                         new UrlTemplateImageryProvider({
-                            url: 'http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+                            url: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
                             credit: 'Map tiles by OpenSeaMap.'
                         })
                     ]
@@ -752,18 +728,11 @@ export default {
             // Store reference to the tileset
             this.google3DTileset = null
 
-            // Store references to tilesets
-            this.vicBuildingsTileset = null
-
             google3dButton.addEventListener('click', async () => {
                 if (this.google3DTileset) {
                     // Toggle off - remove tilesets and restore globe
                     this.viewer.scene.primitives.remove(this.google3DTileset)
                     this.google3DTileset = null
-                    if (this.vicBuildingsTileset) {
-                        this.viewer.scene.primitives.remove(this.vicBuildingsTileset)
-                        this.vicBuildingsTileset = null
-                    }
                     this.viewer.scene.globe.show = true
                     google3dButton.style.backgroundColor = ''
                 } else {
@@ -772,24 +741,15 @@ export default {
                         // Disable globe to prevent projection conflicts with 3D tiles
                         this.viewer.scene.globe.show = false
 
-                        // 1. Enable Google Photorealistic Tiles (max detail)
+                        // Enable Google Photorealistic 3D Tiles
+                        // Quality balanced for broad device compatibility
                         this.google3DTileset = await createGooglePhotorealistic3DTileset()
-                        this.google3DTileset.maximumScreenSpaceError = 1
-                        this.google3DTileset.maximumMemoryUsage = 4096
+                        this.google3DTileset.maximumScreenSpaceError = 2
+                        this.google3DTileset.maximumMemoryUsage = 2048
                         this.google3DTileset.preloadWhenHidden = true
                         this.google3DTileset.preferLeaves = true
                         this.google3DTileset.skipLevelOfDetail = false
                         this.viewer.scene.primitives.add(this.google3DTileset)
-
-                        // 2. Add Vic Gov Buildings
-                        try {
-                            // eslint-disable-next-line max-len
-                            this.vicBuildingsTileset = await Cesium3DTileset.fromUrl('https://vic.digitaltwin.terria.io/api/v0/data/vic-buildings/tileset.json')
-                            this.viewer.scene.primitives.add(this.vicBuildingsTileset)
-                            console.log('Victorian government buildings loaded')
-                        } catch (vicError) {
-                            console.warn('Vic buildings not available:', vicError)
-                        }
 
                         google3dButton.style.backgroundColor = '#4CAF50'
 
