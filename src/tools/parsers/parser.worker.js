@@ -3,6 +3,7 @@
 const mavparser = require('./mavlinkParser')
 const DataflashParser = require('./JsDataflashParser/parser').default
 const DjiParser = require('./djiParser').default
+const KmlParser = require('./kmlParser').default
 
 let parser
 self.addEventListener('message', async function (event) {
@@ -16,6 +17,9 @@ self.addEventListener('message', async function (event) {
         } else if (event.data.isDji) {
             parser = new DjiParser()
             await parser.processData(data)
+        } else if (event.data.isKml) {
+            parser = new KmlParser()
+            parser.processData(data)
         } else {
             parser = new DataflashParser(true)
             parser.processData(data, ['CMD', 'MSG', 'FILE', 'MODE', 'AHR2', 'ATT', 'GPS', 'POS',

@@ -90,7 +90,8 @@ export class DjiDataExtractor {
             const timeTrajectory = {}
             let startAltitude = null
             const gpsData = messages.OSD
-            let start = 0
+            // Downsample to ~5 Hz, but never drop the very first fix.
+            let start = -Infinity
             for (const i in gpsData.time_boot_ms) {
                 const delta = gpsData.time_boot_ms[i] - start
                 if (delta < 200) {
@@ -113,7 +114,7 @@ export class DjiDataExtractor {
                     timeTrajectory[gpsData.time_boot_ms[i]] = [
                         gpsData.longitude[i],
                         gpsData.latitude[i],
-                        (gpsData.altitude[i] - startAltitude) / 1000,
+                        gpsData.altitude[i],
                         gpsData.time_boot_ms[i]]
                 }
             }

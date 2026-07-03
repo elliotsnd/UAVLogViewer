@@ -12,7 +12,7 @@
         </li>
         <div @click="browse" @dragover.prevent @drop="onDrop" id="drop_zone"
         v-if="file==null && uploadpercentage===-1  && !sampleLoaded">
-            <p>Drop *.tlog or *.bin file here or click to browse</p>
+            <p>Drop *.tlog, *.bin, *.txt (DJI) or *.kml file here or click to browse</p>
             <input @change="onChange" id="choosefile" style="opacity: 0;" type="file">
         </div>
         <!--<b-form-checkbox @change="uploadFile()" class="uploadCheckbox" v-if="file!=null && !uploadStarted"> Upload
@@ -86,6 +86,9 @@ export default {
             if (url.indexOf('.txt') > 0) {
                 this.state.logType = 'dji'
             }
+            if (url.indexOf('.kml') > 0) {
+                this.state.logType = 'kml'
+            }
 
             oReq.open('GET', url, true)
             oReq.responseType = 'arraybuffer'
@@ -100,7 +103,8 @@ export default {
                     action: 'parse',
                     file: arrayBuffer,
                     isTlog: (url.indexOf('.tlog') > 0),
-                    isDji: (url.indexOf('.txt') > 0)
+                    isDji: (url.indexOf('.txt') > 0),
+                    isKml: (url.indexOf('.kml') > 0)
                 })
             }
             oReq.addEventListener('progress', (e) => {
@@ -158,12 +162,16 @@ export default {
                     action: 'parse',
                     file: data,
                     isTlog: (file.name.endsWith('tlog')),
-                    isDji: (file.name.endsWith('txt'))
+                    isDji: (file.name.endsWith('txt')),
+                    isKml: (file.name.toLowerCase().endsWith('.kml'))
                 })
             }
             this.state.logType = file.name.endsWith('tlog') ? 'tlog' : 'bin'
             if (file.name.endsWith('.txt')) {
                 this.state.logType = 'dji'
+            }
+            if (file.name.toLowerCase().endsWith('.kml')) {
+                this.state.logType = 'kml'
             }
             reader.readAsArrayBuffer(file)
         },
@@ -258,6 +266,9 @@ export default {
                 this.$eventHub.$emit('messages')
             } else if (event.data.url) {
                 this.downloadFileFromURL(event.data.url)
+            } else if (event.data.error) {
+                this.state.processStatus = 'ERROR: ' + event.data.error
+                alert('Could not parse file: ' + event.data.error)
             }
         }
         const url = document.location.search.split('?file=')[1]

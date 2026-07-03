@@ -49,7 +49,7 @@ const messageTypes = {
           "voltageWarning"
       ]
   },
-  gimbal: {
+  GIMBAL: {
       expressions: [
           "mode",
           "pitch",
@@ -149,8 +149,9 @@ function transformData(dataArray, startTime) {
       return {};
   }
 
-  // Helper function to capitalize first letter
-  const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toUpperCase();
+  // Upper-cases the whole frame key so it matches the (upper-case) keys in
+  // `messageTypes` and the lookups in DjiDataExtractor (e.g. "osd" -> "OSD").
+  const capitalize = (str) => str.toUpperCase();
 
   // Initialize the messages object
   const messages = {};
