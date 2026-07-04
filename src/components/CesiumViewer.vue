@@ -783,13 +783,20 @@ export default {
                         // Disable globe to prevent projection conflicts with 3D tiles
                         this.viewer.scene.globe.show = false
 
-                        // 1. Enable Google Photorealistic Tiles (max detail)
+                        // 1. Enable Google Photorealistic Tiles, tuned to load
+                        // like Google Maps 3D rather than for maximum detail.
+                        // SSE 1 demanded ~16x the tiles everywhere and made
+                        // loading crawl; 16 is Cesium's/Google's default. Skipping
+                        // LOD lets detail stream in progressively, and not
+                        // preloading hidden/leaf tiles avoids wasted bandwidth.
                         this.google3DTileset = await createGooglePhotorealistic3DTileset()
-                        this.google3DTileset.maximumScreenSpaceError = 1
-                        this.google3DTileset.maximumMemoryUsage = 4096
-                        this.google3DTileset.preloadWhenHidden = true
-                        this.google3DTileset.preferLeaves = true
-                        this.google3DTileset.skipLevelOfDetail = false
+                        this.google3DTileset.maximumScreenSpaceError = 16
+                        this.google3DTileset.skipLevelOfDetail = true
+                        this.google3DTileset.preloadWhenHidden = false
+                        this.google3DTileset.preferLeaves = false
+                        this.google3DTileset.dynamicScreenSpaceError = true
+                        this.google3DTileset.cacheBytes = 536870912
+                        this.google3DTileset.maximumCacheOverflowBytes = 536870912
                         this.viewer.scene.primitives.add(this.google3DTileset)
 
                         // 2. Add Vic Gov Buildings
