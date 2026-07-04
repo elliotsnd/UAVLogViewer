@@ -789,7 +789,7 @@ export default {
                         // trees/buildings are crisp), cheap far away: dynamic
                         // SSE aggressively coarsens distant tiles so it still
                         // streams fast like Google Maps.
-                        this.google3DTileset.maximumScreenSpaceError = 8
+                        this.google3DTileset.maximumScreenSpaceError = 3
                         this.google3DTileset.skipLevelOfDetail = true
                         this.google3DTileset.preloadWhenHidden = false
                         this.google3DTileset.preferLeaves = false
