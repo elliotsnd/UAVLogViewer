@@ -59,7 +59,6 @@ import {
     Primitive,
     ShaderSource,
     ImageMaterialProperty,
-    Cesium3DTileset,
     createGooglePhotorealistic3DTileset
 } from 'cesium'
 
@@ -763,18 +762,11 @@ export default {
             // Store reference to the tileset
             this.google3DTileset = null
 
-            // Store references to tilesets
-            this.vicBuildingsTileset = null
-
             google3dButton.addEventListener('click', async () => {
                 if (this.google3DTileset) {
                     // Toggle off - remove tilesets and restore globe
                     this.viewer.scene.primitives.remove(this.google3DTileset)
                     this.google3DTileset = null
-                    if (this.vicBuildingsTileset) {
-                        this.viewer.scene.primitives.remove(this.vicBuildingsTileset)
-                        this.vicBuildingsTileset = null
-                    }
                     this.viewer.scene.globe.show = true
                     google3dButton.style.backgroundColor = ''
                 } else {
@@ -798,16 +790,6 @@ export default {
                         this.google3DTileset.cacheBytes = 536870912
                         this.google3DTileset.maximumCacheOverflowBytes = 536870912
                         this.viewer.scene.primitives.add(this.google3DTileset)
-
-                        // 2. Add Vic Gov Buildings
-                        try {
-                            // eslint-disable-next-line max-len
-                            this.vicBuildingsTileset = await Cesium3DTileset.fromUrl('https://vic.digitaltwin.terria.io/api/v0/data/vic-buildings/tileset.json')
-                            this.viewer.scene.primitives.add(this.vicBuildingsTileset)
-                            console.log('Victorian government buildings loaded')
-                        } catch (vicError) {
-                            console.warn('Vic buildings not available:', vicError)
-                        }
 
                         google3dButton.style.backgroundColor = '#4CAF50'
 
