@@ -164,9 +164,12 @@ export default {
                     })
                 this.viewer.animation.viewModel.setShuttleRingTicks([0.1, 0.25, 0.5, 0.75, 1, 2, 5, 10, 15])
                 this.viewer.scene.globe.depthTestAgainstTerrain = true
-                this.viewer.shadowMap.maxmimumDistance = 10000.0
-                this.viewer.shadowMap.softShadows = true
-                this.viewer.shadowMap.size = 4096
+                // Dynamic cast shadows were glitchy (the distance limit had a
+                // typo'd property name so it never applied, stretching the
+                // shadow map across the whole scene). Google's photorealistic
+                // tiles also already have real shadows baked into the imagery,
+                // so keep sun lighting but turn the dynamic shadow map off.
+                this.viewer.shadowMap.enabled = false
                 this.viewer.animation.viewModel.timeFormatter = (date, _viewModel) => {
                     const isoString = JulianDate.toIso8601(date)
                     let dateTime = DateTime.fromISO(isoString)
@@ -274,7 +277,7 @@ export default {
                         scene3DOnly: false,
                         selectionIndicator: false,
                         infoBox: false,
-                        shadows: true,
+                        shadows: false,
                         imageryProviderViewModels: imageryProviders,
                         selectedImageryProviderViewModel: imageryProviders[0],
                         orderIndependentTranslucency: false,
@@ -294,7 +297,7 @@ export default {
                     scene3DOnly: false,
                     selectionIndicator: false,
                     infoBox: false,
-                    shadows: true,
+                    shadows: false,
                     orderIndependentTranslucency: false,
                     baseLayerPicker: false,
                     imageryProvider: false,
@@ -782,11 +785,17 @@ export default {
                         // LOD lets detail stream in progressively, and not
                         // preloading hidden/leaf tiles avoids wasted bandwidth.
                         this.google3DTileset = await createGooglePhotorealistic3DTileset()
-                        this.google3DTileset.maximumScreenSpaceError = 16
+                        // Sharp near the camera (low base SSE = high detail, so
+                        // trees/buildings are crisp), cheap far away: dynamic
+                        // SSE aggressively coarsens distant tiles so it still
+                        // streams fast like Google Maps.
+                        this.google3DTileset.maximumScreenSpaceError = 8
                         this.google3DTileset.skipLevelOfDetail = true
                         this.google3DTileset.preloadWhenHidden = false
                         this.google3DTileset.preferLeaves = false
                         this.google3DTileset.dynamicScreenSpaceError = true
+                        this.google3DTileset.dynamicScreenSpaceErrorDensity = 0.006
+                        this.google3DTileset.dynamicScreenSpaceErrorFactor = 24
                         this.google3DTileset.cacheBytes = 536870912
                         this.google3DTileset.maximumCacheOverflowBytes = 536870912
                         this.viewer.scene.primitives.add(this.google3DTileset)
