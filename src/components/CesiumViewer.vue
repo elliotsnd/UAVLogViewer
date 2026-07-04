@@ -70,6 +70,7 @@ import { store } from './Globals.js'
 import { DataflashDataExtractor } from '../tools/dataflashDataExtractor'
 import { MavlinkDataExtractor } from '../tools/mavlinkDataExtractor'
 import { DjiDataExtractor } from '../tools/djiDataExtractor'
+import { KmlDataExtractor } from '../tools/kmlDataExtractor'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import CesiumSettingsWidget from './widgets/CesiumSettingsWidget.vue'
 import ColorCoderMode from './cesiumExtra/colorCoderMode.js'
@@ -1589,6 +1590,8 @@ export default {
                 } else if (this.state.logType === 'dji') {
                     console.log('Using DJI extractor')
                     dataExtractor = DjiDataExtractor
+                } else if (this.state.logType === 'kml') {
+                    dataExtractor = KmlDataExtractor
                 } else {
                     dataExtractor = DataflashDataExtractor
                 }
@@ -1601,6 +1604,10 @@ export default {
                 let dataExtractor = null
                 if (this.state.logType === 'tlog') {
                     dataExtractor = MavlinkDataExtractor
+                } else if (this.state.logType === 'dji') {
+                    dataExtractor = DjiDataExtractor
+                } else if (this.state.logType === 'kml') {
+                    dataExtractor = KmlDataExtractor
                 } else {
                     dataExtractor = DataflashDataExtractor
                 }

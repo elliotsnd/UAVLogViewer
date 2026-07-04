@@ -28,7 +28,7 @@ function currentFromName (name) {
     if (!name) {
         return null
     }
-    const nums = (name.match(/[\d.]+/g) || []).map(Number)
+    const nums = (name.match(/\d+(?:\.\d+)?/g) || []).map(Number)
     if (/less than/i.test(name) && nums.length >= 1) {
         return nums[0] / 2
     }
@@ -88,7 +88,7 @@ function parseKml (text) {
             const lon = parseFloat(parts[0])
             const lat = parseFloat(parts[1])
             const alt = parts.length > 2 ? parseFloat(parts[2]) : 0
-            if (!isFinite(lon) || !isFinite(lat)) {
+            if (!isFinite(lon) || !isFinite(lat) || !isFinite(alt)) {
                 continue
             }
             if (homeAltitude === null) {
