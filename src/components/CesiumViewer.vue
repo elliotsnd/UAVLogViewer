@@ -231,8 +231,18 @@ export default {
             }
 
             if (this.state.vehicle !== 'boat' && this.state.isOnline) {
-                const promise = sampleTerrainMostDetailed(this.viewer.terrainProvider, this.correctedTrajectory)
-                promise.then(async (result) => { await this.setup2(result) })
+                // Terrain sampling hits the network; on a slow/flaky link it can
+                // stall for a long time. setup2() adds the model, configures the
+                // clock and clears the loading spinner, so don't block it forever
+                // on terrain — fall back to the raw trajectory after a timeout.
+                const terrainPromise = sampleTerrainMostDetailed(this.viewer.terrainProvider, this.correctedTrajectory)
+                const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 8000))
+                Promise.race([terrainPromise, timeout]).then(async (result) => {
+                    if (result === null) {
+                        console.warn('Terrain sampling slow/unavailable; loading without terrain heights')
+                    }
+                    await this.setup2(result || this.correctedTrajectory)
+                })
             } else {
                 this.setup2(this.correctedTrajectory)
             }
