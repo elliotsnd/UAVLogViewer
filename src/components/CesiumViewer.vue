@@ -832,14 +832,16 @@ export default {
         },
 
         getTimeStart () {
-            let date = null
-            try {
-                date = JulianDate.fromDate(this.state.metadata.startTime)
-            } catch (e) {
-                console.log(e)
-                date = JulianDate.fromDate(new Date(2015, 2, 25, 16))
+            // metadata.startTime is epoch milliseconds (a number), or 0/absent
+            // for logs with no real timestamp such as KML. JulianDate.fromDate
+            // needs a Date, so coerce it and fall back to a fixed epoch when
+            // there's no usable start time (avoids the noisy DeveloperError).
+            const startTime = this.state.metadata ? this.state.metadata.startTime : null
+            const date = startTime instanceof Date ? startTime : new Date(startTime)
+            if (startTime && !isNaN(date.getTime())) {
+                return JulianDate.fromDate(date)
             }
-            return date
+            return JulianDate.fromDate(new Date(2015, 2, 25, 16))
         },
 
         mouseIsOnPoint (point) {
