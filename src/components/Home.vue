@@ -58,6 +58,7 @@ import colormap from 'colormap'
 import { DataflashDataExtractor } from '../tools/dataflashDataExtractor'
 import { MavlinkDataExtractor } from '../tools/mavlinkDataExtractor'
 import { DjiDataExtractor } from '../tools/djiDataExtractor'
+import { KmlDataExtractor } from '../tools/kmlDataExtractor'
 import MagFitTool from '@/components/widgets/MagFitTool.vue'
 import EkfHelperTool from '@/components/widgets/EkfHelperTool.vue'
 import Vue from 'vue'
@@ -88,6 +89,8 @@ export default {
                     this.dataExtractor = MavlinkDataExtractor
                 } else if (this.state.logType === 'dji') {
                     this.dataExtractor = DjiDataExtractor
+                } else if (this.state.logType === 'kml') {
+                    this.dataExtractor = KmlDataExtractor
                 } else {
                     this.dataExtractor = DataflashDataExtractor
                 }

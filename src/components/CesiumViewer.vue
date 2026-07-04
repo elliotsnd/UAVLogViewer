@@ -59,7 +59,6 @@ import {
     Primitive,
     ShaderSource,
     ImageMaterialProperty,
-    Cesium3DTileset,
     createGooglePhotorealistic3DTileset
 } from 'cesium'
 
@@ -70,6 +69,7 @@ import { store } from './Globals.js'
 import { DataflashDataExtractor } from '../tools/dataflashDataExtractor'
 import { MavlinkDataExtractor } from '../tools/mavlinkDataExtractor'
 import { DjiDataExtractor } from '../tools/djiDataExtractor'
+import { KmlDataExtractor } from '../tools/kmlDataExtractor'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import CesiumSettingsWidget from './widgets/CesiumSettingsWidget.vue'
 import ColorCoderMode from './cesiumExtra/colorCoderMode.js'
@@ -164,9 +164,12 @@ export default {
                     })
                 this.viewer.animation.viewModel.setShuttleRingTicks([0.1, 0.25, 0.5, 0.75, 1, 2, 5, 10, 15])
                 this.viewer.scene.globe.depthTestAgainstTerrain = true
-                this.viewer.shadowMap.maxmimumDistance = 10000.0
-                this.viewer.shadowMap.softShadows = true
-                this.viewer.shadowMap.size = 4096
+                // Dynamic cast shadows were glitchy (the distance limit had a
+                // typo'd property name so it never applied, stretching the
+                // shadow map across the whole scene). Google's photorealistic
+                // tiles also already have real shadows baked into the imagery,
+                // so keep sun lighting but turn the dynamic shadow map off.
+                this.viewer.shadowMap.enabled = false
                 this.viewer.animation.viewModel.timeFormatter = (date, _viewModel) => {
                     const isoString = JulianDate.toIso8601(date)
                     let dateTime = DateTime.fromISO(isoString)
@@ -230,8 +233,18 @@ export default {
             }
 
             if (this.state.vehicle !== 'boat' && this.state.isOnline) {
-                const promise = sampleTerrainMostDetailed(this.viewer.terrainProvider, this.correctedTrajectory)
-                promise.then(async (result) => { await this.setup2(result) })
+                // Terrain sampling hits the network; on a slow/flaky link it can
+                // stall for a long time. setup2() adds the model, configures the
+                // clock and clears the loading spinner, so don't block it forever
+                // on terrain — fall back to the raw trajectory after a timeout.
+                const terrainPromise = sampleTerrainMostDetailed(this.viewer.terrainProvider, this.correctedTrajectory)
+                const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 8000))
+                Promise.race([terrainPromise, timeout]).then(async (result) => {
+                    if (result === null) {
+                        console.warn('Terrain sampling slow/unavailable; loading without terrain heights')
+                    }
+                    await this.setup2(result || this.correctedTrajectory)
+                })
             } else {
                 this.setup2(this.correctedTrajectory)
             }
@@ -264,7 +277,7 @@ export default {
                         scene3DOnly: false,
                         selectionIndicator: false,
                         infoBox: false,
-                        shadows: true,
+                        shadows: false,
                         imageryProviderViewModels: imageryProviders,
                         selectedImageryProviderViewModel: imageryProviders[0],
                         orderIndependentTranslucency: false,
@@ -284,7 +297,7 @@ export default {
                     scene3DOnly: false,
                     selectionIndicator: false,
                     infoBox: false,
-                    shadows: true,
+                    shadows: false,
                     orderIndependentTranslucency: false,
                     baseLayerPicker: false,
                     imageryProvider: false,
@@ -752,18 +765,11 @@ export default {
             // Store reference to the tileset
             this.google3DTileset = null
 
-            // Store references to tilesets
-            this.vicBuildingsTileset = null
-
             google3dButton.addEventListener('click', async () => {
                 if (this.google3DTileset) {
                     // Toggle off - remove tilesets and restore globe
                     this.viewer.scene.primitives.remove(this.google3DTileset)
                     this.google3DTileset = null
-                    if (this.vicBuildingsTileset) {
-                        this.viewer.scene.primitives.remove(this.vicBuildingsTileset)
-                        this.vicBuildingsTileset = null
-                    }
                     this.viewer.scene.globe.show = true
                     google3dButton.style.backgroundColor = ''
                 } else {
@@ -772,24 +778,27 @@ export default {
                         // Disable globe to prevent projection conflicts with 3D tiles
                         this.viewer.scene.globe.show = false
 
-                        // 1. Enable Google Photorealistic Tiles (max detail)
+                        // 1. Enable Google Photorealistic Tiles, tuned to load
+                        // like Google Maps 3D rather than for maximum detail.
+                        // SSE 1 demanded ~16x the tiles everywhere and made
+                        // loading crawl; 16 is Cesium's/Google's default. Skipping
+                        // LOD lets detail stream in progressively, and not
+                        // preloading hidden/leaf tiles avoids wasted bandwidth.
                         this.google3DTileset = await createGooglePhotorealistic3DTileset()
-                        this.google3DTileset.maximumScreenSpaceError = 1
-                        this.google3DTileset.maximumMemoryUsage = 4096
-                        this.google3DTileset.preloadWhenHidden = true
-                        this.google3DTileset.preferLeaves = true
-                        this.google3DTileset.skipLevelOfDetail = false
+                        // Sharp near the camera (low base SSE = high detail, so
+                        // trees/buildings are crisp), cheap far away: dynamic
+                        // SSE aggressively coarsens distant tiles so it still
+                        // streams fast like Google Maps.
+                        this.google3DTileset.maximumScreenSpaceError = 3
+                        this.google3DTileset.skipLevelOfDetail = true
+                        this.google3DTileset.preloadWhenHidden = false
+                        this.google3DTileset.preferLeaves = false
+                        this.google3DTileset.dynamicScreenSpaceError = true
+                        this.google3DTileset.dynamicScreenSpaceErrorDensity = 0.006
+                        this.google3DTileset.dynamicScreenSpaceErrorFactor = 24
+                        this.google3DTileset.cacheBytes = 536870912
+                        this.google3DTileset.maximumCacheOverflowBytes = 536870912
                         this.viewer.scene.primitives.add(this.google3DTileset)
-
-                        // 2. Add Vic Gov Buildings
-                        try {
-                            // eslint-disable-next-line max-len
-                            this.vicBuildingsTileset = await Cesium3DTileset.fromUrl('https://vic.digitaltwin.terria.io/api/v0/data/vic-buildings/tileset.json')
-                            this.viewer.scene.primitives.add(this.vicBuildingsTileset)
-                            console.log('Victorian government buildings loaded')
-                        } catch (vicError) {
-                            console.warn('Vic buildings not available:', vicError)
-                        }
 
                         google3dButton.style.backgroundColor = '#4CAF50'
 
@@ -823,14 +832,16 @@ export default {
         },
 
         getTimeStart () {
-            let date = null
-            try {
-                date = JulianDate.fromDate(this.state.metadata.startTime)
-            } catch (e) {
-                console.log(e)
-                date = JulianDate.fromDate(new Date(2015, 2, 25, 16))
+            // metadata.startTime is epoch milliseconds (a number), or 0/absent
+            // for logs with no real timestamp such as KML. JulianDate.fromDate
+            // needs a Date, so coerce it and fall back to a fixed epoch when
+            // there's no usable start time (avoids the noisy DeveloperError).
+            const startTime = this.state.metadata ? this.state.metadata.startTime : null
+            const date = startTime instanceof Date ? startTime : new Date(startTime)
+            if (startTime && !isNaN(date.getTime())) {
+                return JulianDate.fromDate(date)
             }
-            return date
+            return JulianDate.fromDate(new Date(2015, 2, 25, 16))
         },
 
         mouseIsOnPoint (point) {
@@ -1589,6 +1600,8 @@ export default {
                 } else if (this.state.logType === 'dji') {
                     console.log('Using DJI extractor')
                     dataExtractor = DjiDataExtractor
+                } else if (this.state.logType === 'kml') {
+                    dataExtractor = KmlDataExtractor
                 } else {
                     dataExtractor = DataflashDataExtractor
                 }
@@ -1601,6 +1614,10 @@ export default {
                 let dataExtractor = null
                 if (this.state.logType === 'tlog') {
                     dataExtractor = MavlinkDataExtractor
+                } else if (this.state.logType === 'dji') {
+                    dataExtractor = DjiDataExtractor
+                } else if (this.state.logType === 'kml') {
+                    dataExtractor = KmlDataExtractor
                 } else {
                     dataExtractor = DataflashDataExtractor
                 }
